@@ -1,7 +1,6 @@
 import numpy as np
-import os
 import gym
-from gym import error, spaces
+from gym import spaces
 from collections import deque
 
 from io import BytesIO
@@ -18,6 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 import time
+
 
 class ChromeDinoEnv(gym.Env):
 
@@ -142,64 +142,3 @@ class ChromeDinoEnv(gym.Env):
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
-
-import imageio
-
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.callbacks import CheckpointCallback
-
-if __name__ == '__main__':
-    env_lambda = lambda: ChromeDinoEnv(
-        screen_width=96,
-        screen_height=96,
-        chromedriver_path=os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "chromedriver"
-        )
-    )
-    do_train = False
-    num_cpu = 1
-    save_path = "chrome_dino_ppo_cnn"
-    env = SubprocVecEnv([env_lambda for i in range(num_cpu)])
-
-    if do_train:
-        checkpoint_callback = CheckpointCallback(
-            save_freq=200000, 
-            save_path='./checkpoints/',
-            name_prefix=save_path,
-        )
-        model = PPO(
-            'CnnPolicy',
-            env,
-            verbose=2,
-            tensorboard_log="./tb_chromedino_env/",
-        )
-        model.learn(
-            total_timesteps=2000000, 
-            callback=[checkpoint_callback]
-        )
-        model.save(save_path)
-    
-    model = PPO.load(save_path, env=env)
-
-    images = []
-
-    obs = env.reset()
-    dones = np.array([False] * num_cpu)
-    img = model.env.render(mode='rgb_array')
-
-    i = 0
-    while not np.all(dones):
-        images.append(img)
-        action, _states = model.predict(obs, deterministic=True)
-        obs, rewards, dones, info = env.step(action)
-
-        # env.render(mode='human')
-        
-        img = env.render(mode='rgb_array')
-        i += 1
-
-    imageio.mimsave('dino.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
-
-    exit()
