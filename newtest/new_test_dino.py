@@ -158,8 +158,8 @@ if __name__ == '__main__':
             "chromedriver"
         )
     )
-    do_train = True
-    num_cpu = 8
+    do_train = False
+    num_cpu = 1
     save_path = "chrome_dino_ppo_cnn"
     env = SubprocVecEnv([env_lambda for i in range(num_cpu)])
 
@@ -186,9 +186,11 @@ if __name__ == '__main__':
     images = []
 
     obs = env.reset()
+    dones = np.array([False] * num_cpu)
     img = model.env.render(mode='rgb_array')
 
-    for i in range(500):
+    i = 0
+    while not np.all(dones):
         images.append(img)
         action, _states = model.predict(obs, deterministic=True)
         obs, rewards, dones, info = env.step(action)
@@ -196,6 +198,7 @@ if __name__ == '__main__':
         # env.render(mode='human')
         
         img = env.render(mode='rgb_array')
+        i += 1
 
     imageio.mimsave('dino.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
