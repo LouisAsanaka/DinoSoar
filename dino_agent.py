@@ -60,10 +60,14 @@ def train(timesteps: int, save_freq: int, env_count: int,
     model.save(uid)
 
 
-def evaluate(model: str):
-    log(f'Evaluating model "{model}"...')
+def evaluate(model_name: str):
+    log(f'Evaluating model "{model_name}"...')
     log(f'Creating environment...')
     env: SubprocVecEnv = create_env(env_count=1)
+
+    model = PPO.load(model_name, env, 
+        verbose=2, tensorboard_log='./tb_dinosoar/')
+
     images = []
 
     obs = env.reset()
@@ -81,7 +85,7 @@ def evaluate(model: str):
         i += 1
 
     log('Saving image...')
-    imageio.mimsave(f'dino_{model}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
+    imageio.mimsave(f'dino_{model_name}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
 
 if __name__ == '__main__':
@@ -112,6 +116,6 @@ if __name__ == '__main__':
         train(timesteps=args.timesteps, save_freq=args.savefreq, 
             env_count=args.count, previous_model=args.model)
     elif args.which == 'eval':
-        evaluate(model=args.model)
+        evaluate(model_name=args.model)
 
     exit()
