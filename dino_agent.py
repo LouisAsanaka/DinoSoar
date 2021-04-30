@@ -9,13 +9,13 @@ from dino_env import ChromeDinoEnv
 from utils import *
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 
 
 def create_env(env_count: int) -> SubprocVecEnv:
-    return make_vec_env(ChromeDinoEnv, n_envs=env_count,
+    return VecTransposeImage(make_vec_env(ChromeDinoEnv, n_envs=env_count,
         env_kwargs={
             'screen_width': 96, 
             'screen_height': 96, 
@@ -25,10 +25,10 @@ def create_env(env_count: int) -> SubprocVecEnv:
             )
         },
         vec_env_cls=SubprocVecEnv
-    )
+    ))
 
 
-def train(timesteps: int, save_freq: int, env_count: int, 
+def train(timesteps: int, save_freq: int, eval_freq: int, env_count: int, 
     previous_model: Optional[str]):
     uid: str = random_model_name()
 
@@ -39,6 +39,11 @@ def train(timesteps: int, save_freq: int, env_count: int,
         save_freq=save_freq,
         save_path=f'./checkpoints/{uid}/',
     )
+
+    eval_env: SubprocVecEnv = create_env(env_count=1)
+    eval_callback = EvalCallback(eval_env=eval_env, n_eval_episodes=5,
+        eval_freq=eval_freq, best_model_save_path='./best_models/', 
+        deterministic=True, verbose=2)
 
     if previous_model is not None: # Load previous model & continue training
         log(f'Found previous model "{previous_model}"! Loading...')
@@ -54,10 +59,38 @@ def train(timesteps: int, save_freq: int, env_count: int,
 
     start_time: int = time.time()
     model.learn(
-        total_timesteps=timesteps, callback=[checkpoint_callback]
+        total_timesteps=timesteps, callback=[checkpoint_callback, eval_callback]
     )
     log(f'Done training in {to_hms(time.time() - start_time)}! Saving model "{uid}"...')
     model.save(uid)
+    log(f'Running model & saving gifs...')
+
+    obs = env.reset()
+    img = model.env.render(mode='rgb_array')
+    imageio.imsave(f'dino_{uid}_train.png', np.array(img))
+
+    obs = eval_env.reset()
+    img = eval_env.render(mode='rgb_array')
+    imageio.imsave(f'dino_{uid}_eval.png', np.array(img))
+
+    log(f'Done saving image!')
+    # images = []
+
+    # obs = env.reset()
+    # dones = np.array([False] * env_count)
+    # img = model.env.render(mode='rgb_array')
+
+    # i = 0
+    # while not np.all(dones):
+    #     images.append(img)
+    #     action, _states = model.predict(obs, deterministic=True)
+    #     obs, rewards, dones, info = env.step(action)
+        
+    #     img = env.render(mode='rgb_array')
+    #     i += 1
+
+    # log('Saving gif...')
+    # imageio.mimsave(f'dino_{uid}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
 
 def evaluate(model_name: str):
@@ -71,7 +104,7 @@ def evaluate(model_name: str):
     images = []
 
     obs = env.reset()
-    dones = np.array([False])
+    dones = np.array([False] * 1)
     img = model.env.render(mode='rgb_array')
 
     log('Running environment...')
@@ -84,7 +117,7 @@ def evaluate(model_name: str):
         img = env.render(mode='rgb_array')
         i += 1
 
-    log('Saving image...')
+    log('Saving gif...')
     imageio.mimsave(f'dino_{model_name}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
 
@@ -101,6 +134,8 @@ if __name__ == '__main__':
         help='number of timesteps to train the agent for')
     train_parser.add_argument('-s', '--savefreq', default=100000, type=int,
         help='save the model every savefreq timesteps')
+    train_parser.add_argument('-e', '--evalfreq', default=10000, type=int,
+        help='evalute model every evalfreq timesteps')
     train_parser.add_argument('-c', '--count', default=8, type=int,
         help='number of environments to create')
     train_parser.add_argument('-m', '--model', default=None,
@@ -114,7 +149,8 @@ if __name__ == '__main__':
 
     if args.which == 'train':
         train(timesteps=args.timesteps, save_freq=args.savefreq, 
-            env_count=args.count, previous_model=args.model)
+              eval_freq=args.evalfreq, env_count=args.count, 
+              previous_model=args.model)
     elif args.which == 'eval':
         evaluate(model_name=args.model)
 
