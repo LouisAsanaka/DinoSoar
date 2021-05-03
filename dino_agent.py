@@ -94,6 +94,9 @@ def train(timesteps: int, save_freq: int, eval_freq: int, env_count: int,
 
 
 def evaluate(model_name: str):
+    if model_name is None:
+        log('No model name provided!')
+        return
     log(f'Evaluating model "{model_name}"...')
     log(f'Creating environment...')
     env: SubprocVecEnv = create_env(env_count=1)
@@ -121,6 +124,53 @@ def evaluate(model_name: str):
     imageio.mimsave(f'dino_{model_name}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
 
+def record_best_episode(model_name: str, episode_count: int):
+    if model_name is None:
+        log('No model name provided!')
+        return
+
+    log(f'Evaluating model "{model_name}"...')
+    log(f'Creating environment...')
+    env: SubprocVecEnv = create_env(env_count=1)
+
+    model = PPO.load(model_name, env, 
+        verbose=2, tensorboard_log='./tb_dinosoar/')
+
+    best_frames = None
+    best_net_reward = 0
+
+    log('Running environment...')
+    for episode in range(episode_count):
+        log(f'Running episode {episode}...')
+        i = 0
+
+        images = []
+        obs = env.reset()
+        log('Waiting for reset...')
+        time.sleep(2)
+        dones = np.array([False] * 1)
+        img = model.env.render(mode='rgb_array')
+        net_reward = 0
+        while not np.all(dones):
+            images.append(img)
+            action, _states = model.predict(obs, deterministic=True)
+            obs, rewards, dones, info = env.step(action)
+            net_reward += rewards[0]
+            
+            img = env.render(mode='rgb_array')
+            i += 1
+        log('Done!')
+        if net_reward > best_net_reward:
+            log(f'New best score of {net_reward}! (beat previous score of {best_net_reward})')
+            best_frames = images
+            best_net_reward = net_reward
+        else:
+            log(f'Score of {net_reward} does not beat the current high score of {best_net_reward}.')
+
+    log(f'Saving best gif with score of {best_net_reward}...')
+    imageio.mimsave(f'dino_best_{model_name}.gif', [np.array(img) for i, img in enumerate(best_frames)], fps=15)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Train / evaluate a RL agent for the Chrome T-Rex run!')
@@ -145,6 +195,14 @@ if __name__ == '__main__':
     eval_parser.set_defaults(which='eval')
     eval_parser.add_argument('model', default=None,
         help='path to previous model to load')
+
+    record_parser = subparsers.add_parser('record', help='record the agent\'s best run')
+    record_parser.set_defaults(which='record')
+    record_parser.add_argument('model', default=None,
+        help='path to previous model to load')
+    record_parser.add_argument('-e', '--episodes', default=10, type=int,
+        help='number of episodes to run')
+
     args = parser.parse_args()
 
     if args.which == 'train':
@@ -153,5 +211,7 @@ if __name__ == '__main__':
               previous_model=args.model)
     elif args.which == 'eval':
         evaluate(model_name=args.model)
+    elif args.which == 'record':
+        record_best_episode(model_name=args.model, episode_count=args.episodes)
 
     exit()
