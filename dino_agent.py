@@ -17,8 +17,8 @@ from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 def create_env(env_count: int) -> SubprocVecEnv:
     return VecTransposeImage(make_vec_env(ChromeDinoEnv, n_envs=env_count,
         env_kwargs={
-            'screen_width': 96, 
-            'screen_height': 96, 
+            'screen_width': 200,
+            'screen_height': 75, 
             'chromedriver_path': os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
                 "chromedriver"
@@ -116,7 +116,7 @@ def evaluate(model_name: str):
         images.append(img)
         action, _states = model.predict(obs, deterministic=True)
         obs, rewards, dones, info = env.step(action)
-        
+
         img = env.render(mode='rgb_array')
         i += 1
 
@@ -171,6 +171,26 @@ def record_best_episode(model_name: str, episode_count: int):
     imageio.mimsave(f'dino_best_{model_name}.gif', [np.array(img) for i, img in enumerate(best_frames)], fps=15)
 
 
+def save_observation_images():
+    log(f'Creating environment...')
+    env: SubprocVecEnv = create_env(env_count=1)
+
+    images = []
+
+    obs = env.reset()
+    dones = np.array([False] * 1)
+
+    log('Running environment...')
+    i = 0
+    while not np.all(dones):
+        images.append(obs[0])
+        obs, rewards, dones, info = env.step(np.array([0]))
+        i += 1
+
+    log('Saving gif...')
+    save_observations(images, filename=f'obs')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Train / evaluate a RL agent for the Chrome T-Rex run!')
@@ -203,6 +223,9 @@ if __name__ == '__main__':
     record_parser.add_argument('-e', '--episodes', default=10, type=int,
         help='number of episodes to run')
 
+    save_obs_parser = subparsers.add_parser('obs', help='save observations images from the game')
+    save_obs_parser.set_defaults(which='obs')
+
     args = parser.parse_args()
 
     if args.which == 'train':
@@ -213,5 +236,7 @@ if __name__ == '__main__':
         evaluate(model_name=args.model)
     elif args.which == 'record':
         record_best_episode(model_name=args.model, episode_count=args.episodes)
+    elif args.which == 'obs':
+        save_observation_images()
 
     exit()

@@ -34,7 +34,7 @@ class ChromeDinoEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=0, 
             high=255, 
-            shape=(self.screen_width, self.screen_height, 4), 
+            shape=(self.screen_height, self.screen_width, 4), 
             dtype=np.uint8
         )
 
@@ -94,8 +94,13 @@ class ChromeDinoEnv(gym.Env):
 
     def _next_observation(self):
         image = cv2.cvtColor(self._get_image(), cv2.COLOR_BGR2GRAY)
-        image = image[:500, :480] # cropping
+        # (height, width) = (150, 600)
+        # print(image.shape)
+        image = image[:150, :400] # cropping
+        # print(image.shape)
         image = cv2.resize(image, (self.screen_width, self.screen_height))
+        # (height, width) = (self.screen_height, self.screen_width)
+        # print(image.shape)
 
         self.state_queue.append(image)
 
@@ -103,8 +108,6 @@ class ChromeDinoEnv(gym.Env):
             return np.stack([image] * 4, axis=-1)
         else:
             return np.stack(self.state_queue, axis=-1)
-
-        return image
 
     def _get_score(self):
         return int(''.join(
