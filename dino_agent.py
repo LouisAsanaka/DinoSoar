@@ -8,24 +8,34 @@ from typing import Optional
 from dino_env import ChromeDinoEnv
 from utils import *
 
+import gym
+
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecTransposeImage, VecFrameStack
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.atari_wrappers import *
 
 
-def create_env(env_count: int) -> SubprocVecEnv:
-    return VecTransposeImage(make_vec_env(ChromeDinoEnv, n_envs=env_count,
+def create_env(env_count: int, screen_width: int = 96, screen_height: int = 96) -> SubprocVecEnv:
+    def env_wrappers(env: gym.Env) -> gym.Env:
+        env = MaxAndSkipEnv(env, skip=4)
+        env = WarpFrame(env, width=screen_width, height=screen_height)
+        return env
+
+    venv = make_vec_env(ChromeDinoEnv, n_envs=env_count,
+        wrapper_class=env_wrappers,
         env_kwargs={
-            'screen_width': 200,
-            'screen_height': 75, 
             'chromedriver_path': os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
                 "chromedriver"
             )
         },
         vec_env_cls=SubprocVecEnv
-    ))
+    )
+    venv = VecFrameStack(venv, n_stack=4)
+    venv = VecTransposeImage(venv)
+    return venv
 
 
 def train(timesteps: int, save_freq: int, eval_freq: int, env_count: int, 
@@ -65,32 +75,15 @@ def train(timesteps: int, save_freq: int, eval_freq: int, env_count: int,
     model.save(uid)
     log(f'Running model & saving gifs...')
 
-    obs = env.reset()
+    env.reset()
     img = model.env.render(mode='rgb_array')
     imageio.imsave(f'dino_{uid}_train.png', np.array(img))
 
-    obs = eval_env.reset()
+    eval_env.reset()
     img = eval_env.render(mode='rgb_array')
     imageio.imsave(f'dino_{uid}_eval.png', np.array(img))
 
     log(f'Done saving image!')
-    # images = []
-
-    # obs = env.reset()
-    # dones = np.array([False] * env_count)
-    # img = model.env.render(mode='rgb_array')
-
-    # i = 0
-    # while not np.all(dones):
-    #     images.append(img)
-    #     action, _states = model.predict(obs, deterministic=True)
-    #     obs, rewards, dones, info = env.step(action)
-        
-    #     img = env.render(mode='rgb_array')
-    #     i += 1
-
-    # log('Saving gif...')
-    # imageio.mimsave(f'dino_{uid}.gif', [np.array(img) for i, img in enumerate(images)], fps=15)
 
 
 def evaluate(model_name: str):

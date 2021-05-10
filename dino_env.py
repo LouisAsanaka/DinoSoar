@@ -21,20 +21,14 @@ import time
 
 class ChromeDinoEnv(gym.Env):
 
-    def __init__(self,
-            screen_width: int=120,
-            screen_height: int=120,
-            chromedriver_path: str="chromedriver"
-        ):
-        self.screen_width = screen_width
-        self.screen_height = screen_height
+    def __init__(self, chromedriver_path: str="chromedriver"):
         self.chromedriver_path = chromedriver_path
 
         self.action_space = spaces.Discrete(3) # do nothing, up, down
         self.observation_space = spaces.Box(
             low=0, 
             high=255, 
-            shape=(self.screen_height, self.screen_width, 4), 
+            shape=(150, 400, 4),
             dtype=np.uint8
         )
 
@@ -93,21 +87,9 @@ class ChromeDinoEnv(gym.Env):
         )
 
     def _next_observation(self):
-        image = cv2.cvtColor(self._get_image(), cv2.COLOR_BGR2GRAY)
-        # (height, width) = (150, 600)
-        # print(image.shape)
-        image = image[:150, :400] # cropping
-        # print(image.shape)
-        image = cv2.resize(image, (self.screen_width, self.screen_height))
-        # (height, width) = (self.screen_height, self.screen_width)
-        # print(image.shape)
-
-        self.state_queue.append(image)
-
-        if len(self.state_queue) < 4:
-            return np.stack([image] * 4, axis=-1)
-        else:
-            return np.stack(self.state_queue, axis=-1)
+        img = self._get_image()
+        img = img[:150, :400]
+        return img
 
     def _get_score(self):
         return int(''.join(
@@ -124,9 +106,7 @@ class ChromeDinoEnv(gym.Env):
         obs = self._next_observation()
 
         done = self._get_done()
-        reward = .1 if not done else -1
-
-        time.sleep(.015)
+        reward = 0.1 if not done else -1.0
 
         return obs, reward, done, {"score": self._get_score()}
 
