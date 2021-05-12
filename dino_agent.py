@@ -7,6 +7,7 @@ from typing import Optional
 
 from dino_env import ChromeDinoEnv
 from utils import *
+from wrappers import *
 
 import gym
 
@@ -17,9 +18,20 @@ from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.atari_wrappers import *
 
 
-def create_env(env_count: int, screen_width: int = 96, screen_height: int = 96) -> SubprocVecEnv:
+config = {
+    'batch_size': 256,
+    'clip_range': linear_schedule(0.1),
+    'ent_coef': 0.01,
+    'learning_rate': linear_schedule(2.5e-4),
+    'n_epochs': 4,
+    'n_steps': 128,
+    'vf_coef': 0.5
+}
+
+
+def create_env(env_count: int, screen_width: int = 96, screen_height: int = 96, skip: int = 4) -> SubprocVecEnv:
     def env_wrappers(env: gym.Env) -> gym.Env:
-        env = MaxAndSkipEnv(env, skip=4)
+        env = SkipWrapper(skip)(env)
         env = WarpFrame(env, width=screen_width, height=screen_height)
         return env
 
@@ -57,12 +69,12 @@ def train(timesteps: int, save_freq: int, eval_freq: int, env_count: int,
 
     if previous_model is not None: # Load previous model & continue training
         log(f'Found previous model "{previous_model}"! Loading...')
-        model = PPO.load(previous_model, env, 
+        model = PPO.load(previous_model, env, **config, 
             verbose=2, tensorboard_log='./tb_dinosoar/')
     else: # Start training from scratch
         log(f'Training from scratch...')
         model = PPO(
-            'CnnPolicy', env,
+            'CnnPolicy', env, **config,
             verbose=2, tensorboard_log='./tb_dinosoar/')
     
     log('Started training!')
@@ -94,7 +106,7 @@ def evaluate(model_name: str):
     log(f'Creating environment...')
     env: SubprocVecEnv = create_env(env_count=1)
 
-    model = PPO.load(model_name, env, 
+    model = PPO.load(model_name, env, **config,
         verbose=2, tensorboard_log='./tb_dinosoar/')
 
     images = []
@@ -126,7 +138,7 @@ def record_best_episode(model_name: str, episode_count: int):
     log(f'Creating environment...')
     env: SubprocVecEnv = create_env(env_count=1)
 
-    model = PPO.load(model_name, env, 
+    model = PPO.load(model_name, env, **config,
         verbose=2, tensorboard_log='./tb_dinosoar/')
 
     best_frames = None
