@@ -144,6 +144,8 @@ def record_best_episode(model_name: str, episode_count: int):
     best_frames = None
     best_net_reward = 0
 
+    all_rewards = []
+
     log('Running environment...')
     for episode in range(episode_count):
         log(f'Running episode {episode}...')
@@ -165,6 +167,7 @@ def record_best_episode(model_name: str, episode_count: int):
             img = env.render(mode='rgb_array')
             i += 1
         log('Done!')
+        all_rewards.append(net_reward)
         if net_reward > best_net_reward:
             log(f'New best score of {net_reward}! (beat previous score of {best_net_reward})')
             best_frames = images
@@ -174,6 +177,11 @@ def record_best_episode(model_name: str, episode_count: int):
 
     log(f'Saving best gif with score of {best_net_reward}...')
     imageio.mimsave(f'dino_best_{model_name}.gif', [np.array(img) for i, img in enumerate(best_frames)], fps=15)
+
+    all_rewards = np.array(all_rewards)
+    mean = np.mean(all_rewards)
+    std = np.std(all_rewards)
+    log(f'Stats: mean={mean}, std={std}')
 
 
 def save_observation_images():
